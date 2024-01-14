@@ -1,0 +1,17 @@
+{
+  "name": "media-decode",
+  "version": "0.0.0",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/akane/media-decode.git"
+  },
+  "author": "akane",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/akane/media-decode/issues"
+  },
+  "homepage": "https://github.com/akane/media-decode"
+}
