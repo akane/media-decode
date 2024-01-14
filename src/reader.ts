@@ -7,10 +7,12 @@ export class UnexpectedEOFError extends Error {
 export class ByteReader {
   private offset: number;
   private buffer: Uint8Array;
+
   constructor(private src?: AsyncIterator<Uint8Array>) {
     this.offset = 0;
     this.buffer = new Uint8Array();
   }
+
   private async next() {
     if (this.src === undefined) return false;
     const { done, value } = await this.src.next();
@@ -60,45 +62,48 @@ export class ByteReader {
   }
 }
 
-export class ByteStream implements AsyncIterator<Uint8Array> {
-  private resolve: ((result: IteratorResult<Uint8Array>) => void) | null = null;
-  private cache: Uint8Array[] = [];
+const done_result = { done: true, value: undefined } as const;
+export class Stream<T> implements AsyncIterator<T> {
   private ended = false;
-  private ondata: Promise<IteratorResult<Uint8Array>> | null = null;
+  private push_queue: T[] = [];
+  private next_queue: ((result: IteratorResult<T>) => void)[] = [];
 
-  push(buffer: Uint8Array) {
+  push(value: T) {
     if (this.ended) {
       throw new Error(`Cannot push after end`);
     }
-    if (this.resolve === null) {
-      this.cache.push(buffer);
-    } else {
-      this.resolve({ value: buffer });
-      this.resolve = null;
+    if (this.push_queue.length > 0) {
+      this.push_queue.push(value);
+      return false;
     }
+    const resolve = this.next_queue.shift();
+    if (resolve === undefined) {
+      this.push_queue.push(value);
+      return false;
+    }
+    resolve({ done: false, value });
+    return true;
   }
 
   end() {
     this.ended = true;
-    if (this.resolve !== null) {
-      this.resolve({ done: true, value: undefined });
-      this.resolve = null;
+    for (const resolve of this.next_queue) {
+      resolve(done_result);
     }
+    this.next_queue = [];
   }
 
   async next() {
-    await this.ondata;
-    this.ondata = new Promise<IteratorResult<Uint8Array>>((resolve) => {
-      const value = this.cache.shift();
-      if (value !== undefined) {
-        resolve({ done: false, value });
-      } else if (this.ended) {
-        resolve({ done: true, value: undefined });
-      } else {
-        this.resolve = resolve;
-      }
+    const value = this.push_queue.shift();
+    if (value !== undefined) {
+      return { done: false, value };
+    }
+    if (this.ended) {
+      return done_result;
+    }
+    return new Promise<IteratorResult<T>>((resolve) => {
+      this.next_queue.push(resolve);
     });
-    return this.ondata;
   }
 
   [Symbol.asyncIterator]() {
