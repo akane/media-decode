@@ -59,3 +59,49 @@ export class ByteReader {
     return buffer;
   }
 }
+
+export class ByteStream implements AsyncIterator<Uint8Array> {
+  private resolve: ((result: IteratorResult<Uint8Array>) => void) | null = null;
+  private cache: Uint8Array[] = [];
+  private ended = false;
+  private ondata: Promise<IteratorResult<Uint8Array>> | null = null;
+
+  push(buffer: Uint8Array) {
+    if (this.ended) {
+      throw new Error(`Cannot push after end`);
+    }
+    if (this.resolve === null) {
+      this.cache.push(buffer);
+    } else {
+      this.resolve({ value: buffer });
+      this.resolve = null;
+    }
+  }
+
+  end() {
+    this.ended = true;
+    if (this.resolve !== null) {
+      this.resolve({ done: true, value: undefined });
+      this.resolve = null;
+    }
+  }
+
+  async next() {
+    await this.ondata;
+    this.ondata = new Promise<IteratorResult<Uint8Array>>((resolve) => {
+      const value = this.cache.shift();
+      if (value !== undefined) {
+        resolve({ done: false, value });
+      } else if (this.ended) {
+        resolve({ done: true, value: undefined });
+      } else {
+        this.resolve = resolve;
+      }
+    });
+    return this.ondata;
+  }
+
+  [Symbol.asyncIterator]() {
+    return this;
+  }
+}
