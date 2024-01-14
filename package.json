@@ -1,7 +1,10 @@
 {
   "name": "media-decode",
   "version": "0.0.0",
+  "type": "module",
   "scripts": {
+    "lint": "tsc --noEmit",
+    "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -13,5 +16,8 @@
   "bugs": {
     "url": "https://github.com/akane/media-decode/issues"
   },
-  "homepage": "https://github.com/akane/media-decode"
+  "homepage": "https://github.com/akane/media-decode",
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
 }
