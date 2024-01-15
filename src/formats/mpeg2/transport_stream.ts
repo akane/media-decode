@@ -201,15 +201,18 @@ export async function parse_PES_packet(b: ByteReader) {
     PES_packet_data?: Uint8Array;
   } = {};
   if (
-    stream_id !== StreamID.program_stream_map
-    && stream_id !== StreamID.padding_stream
-    && stream_id !== StreamID.private_stream_2
-    && stream_id !== StreamID.ECM_stream
-    && stream_id !== StreamID.EMM_stream
-    && stream_id !== StreamID.program_stream_directory
-    && stream_id !== StreamID.DSMCC_stream
-    && stream_id !== StreamID.Rec_ITU_T_H_222_1_type_E
+    stream_id === StreamID.program_stream_map
+    || stream_id === StreamID.private_stream_2
+    || stream_id === StreamID.ECM_stream
+    || stream_id === StreamID.EMM_stream
+    || stream_id === StreamID.program_stream_directory
+    || stream_id === StreamID.DSMCC_stream
+    || stream_id === StreamID.Rec_ITU_T_H_222_1_type_E
   ) {
+    optional.PES_packet_data = r.bytes(PES_packet_length);
+  } else if (stream_id === StreamID.padding_stream) {
+    padding_bytes(r, PES_packet_length);
+  } else {
     check_constant(r, 2, 0b10);
     optional.PES_scrambling_control = r.bslbf(2);
     optional.PES_priority = r.bslbf(1) === 1;
@@ -345,18 +348,6 @@ export async function parse_PES_packet(b: ByteReader) {
     }
     stuffing_bytes(r, N1);
     optional.PES_packet_data = r.bytes(PES_packet_length - (r.tell() >>> 3));
-  } else if (
-    stream_id === StreamID.program_stream_map
-    || stream_id === StreamID.private_stream_2
-    || stream_id === StreamID.ECM_stream
-    || stream_id === StreamID.EMM_stream
-    || stream_id === StreamID.program_stream_directory
-    || stream_id === StreamID.DSMCC_stream
-    || stream_id === StreamID.Rec_ITU_T_H_222_1_type_E
-  ) {
-    optional.PES_packet_data = r.bytes(PES_packet_length);
-  } else if (stream_id === StreamID.padding_stream) {
-    padding_bytes(r, PES_packet_length);
   }
   return {
     packet_start_code_prefix,
