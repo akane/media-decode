@@ -31,7 +31,7 @@ export class ByteReader {
 
   async fill(out: Uint8Array) {
     let n = 0;
-    while (n < out.length) {
+    for (; n < out.length;) {
       if (await this.eof()) {
         throw new UnexpectedEOFError();
       }
@@ -75,14 +75,11 @@ export class ByteReader {
     return buffer;
   }
 
-  async buf() {
-    if (await this.eof()) {
-      return empty_buffer;
+  peek_buffer() {
+    if (this.offset !== 0) {
+      this.buffer = this.buffer.subarray(this.offset);
     }
-    const buffer = this.buffer.subarray(this.offset);
-    this.offset = 0;
-    this.buffer = empty_buffer;
-    return buffer;
+    return this.buffer;
   }
 
   async eof() {
@@ -161,6 +158,12 @@ export class Stream<T> implements AsyncIterator<T> {
 export class BitReader {
   private offset = 0;
   constructor(private buffer: Uint8Array) { }
+  private msb() {
+    const byte = this.buffer[this.offset >>> 3];
+    const bit = (byte >>> (7 - (this.offset & 7))) & 1;
+    ++this.offset;
+    return bit;
+  }
 
   // Unsigned integer, most significant bit first
   uimsbf(n: number) {
@@ -169,10 +172,7 @@ export class BitReader {
     let value = 0;
     for (let i = 0; i < n; i++) {
       // TODO: optimize
-      const byte = this.buffer[this.offset >>> 3];
-      const bit = (byte >>> (7 - (this.offset & 7))) & 1;
-      value = (value * 2) + bit;
-      this.offset++;
+      value = (value * 2) + this.msb();
     }
     return value;
   }
@@ -191,19 +191,24 @@ export class BitReader {
     let negative = false;
     for (let i = 0; i < n; i++) {
       // TODO: optimize
-      const byte = this.buffer[this.offset >>> 3];
-      const bit = (byte >>> (7 - (this.offset & 7))) & 1;
-      value = (value * 2) + bit;
-      this.offset++;
+      const bit = this.msb();
       if (i === 0 && bit === 1) {
         negative = true;
       }
+      value = (value * 2) + (negative ? bit ^ 1 : bit);
+    }
+    if (negative) {
+      value = -(value + 1);
     }
     return value;
   }
 
-  bytes(n: number) {
+  check_byte_aligned() {
     if (this.offset & 7) throw new ByteNotAlignedError;
+  }
+
+  bytes(n: number) {
+    this.check_byte_aligned();
     if ((this.offset >>> 3) + n > this.buffer.length) throw new UnexpectedEOFError;
     const buffer = new Uint8Array(n);
     for (let i = 0; i < n; i++) {
