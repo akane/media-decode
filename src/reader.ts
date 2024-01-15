@@ -25,6 +25,7 @@ export class ByteReader {
       return false;
     }
     this.buffer = value;
+    this.offset = 0;
     return true;
   }
 
@@ -46,6 +47,26 @@ export class ByteReader {
       throw new UnexpectedEOFError();
     }
     return this.buffer[this.offset++];
+  }
+
+  async peek_bytes(n: number) {
+    if (this.buffer.length - this.offset < n) {
+      const arr = [this.buffer.subarray(this.offset)];
+      let len = arr[0].length;
+      for (; len < n;) {
+        if (!await this.next()) break;
+        len += this.buffer.length;
+        arr.push(this.buffer);
+      }
+      this.buffer = new Uint8Array(len);
+      let offset = 0;
+      for (const buf of arr) {
+        this.buffer.set(buf, offset);
+        offset += buf.length;
+      }
+      this.offset = 0;
+    }
+    return this.buffer.subarray(this.offset, n);
   }
 
   async bytes(n: number) {

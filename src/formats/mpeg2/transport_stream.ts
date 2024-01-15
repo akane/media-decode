@@ -27,6 +27,7 @@ function stuffing_bytes(r: BitReader, n: number) {
   }
 }
 
+// 2.4.3.4 Adaptation field
 export async function parse_adaptation_field(b: ByteReader) {
   const adaptation_field_length = await b.byte(); // uismbf
   if (adaptation_field_length === 0) return;
@@ -113,14 +114,12 @@ export async function parse_adaptation_field(b: ByteReader) {
   }] as const;
 }
 
-export async function* parse_packets(b: ByteReader) {
-  for (; ;) {
-    try {
-      const next_byte = await b.byte();
-      if (next_byte !== sync_byte) return;
-    } catch (e) {
-      if (e instanceof UnexpectedEOFError) return;
-    }
+export class NotSyncByteError extends Error { }
+
+// 2.4.3.2 Transport stream packet layer
+export async function parse_transport_packet(b: ByteReader) {
+  const _next_byte = await b.byte();
+  if (_next_byte !== sync_byte) throw NotSyncByteError;
     const r = new BitReader(await b.bytes(3));
     const transport_error_indicator = r.bslbf(1);
     const payload_unit_start_indicator = r.bslbf(1);
@@ -134,7 +133,7 @@ export async function* parse_packets(b: ByteReader) {
     const data_byte = adaptation_field_control === 0b01 || adaptation_field_control === 0b11 ?
       await b.bytes(184 - ((adaptation_field_length ?? -1) + 1))
       : undefined;
-    yield {
+  return {
       transport_error_indicator,
       payload_unit_start_indicator,
       transport_priority,
@@ -144,5 +143,18 @@ export async function* parse_packets(b: ByteReader) {
       ...(adaptation_field !== undefined ? { adaptation_field } : {}),
       ...(data_byte !== undefined ? { data_byte } : {}),
     };
+}
+
+// 2.4.3.1 Transport stream
+export async function* parse_transport_stream(b: ByteReader) {
+  for (; ;) {
+    const bytes = await b.bytes(1);
+    if (bytes.length === 0 || bytes[0] !== sync_byte) break;
+    yield await parse_transport_packet(b);
   }
+}
+
+// 2.4.3.6 PES packet
+export async function parse_PES_packet() {
+  // TODO
 }
